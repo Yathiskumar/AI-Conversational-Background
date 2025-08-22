@@ -4,12 +4,28 @@ import useSpeechToText from "@/hooks/useSpeechToText";
 
 type Scenario = "school" | "store" | "home" | null;
 
-export default function Roleplay() {
+interface RoleplayProps {
+  selectedLang: string; // "en", "hi", etc.
+}
+
+export default function Roleplay({ selectedLang }: RoleplayProps) {
   const { text, listening, startListening, stopListening } = useSpeechToText();
   const [scenario, setScenario] = useState<Scenario>(null);
   const [messages, setMessages] = useState<{ role: string; content: string }[]>([]);
   const [waitingReply, setWaitingReply] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
+
+  // ✅ Correct language map (code → speech + AI prompt)
+  const langConfig: Record<string, { code: string; prompt: string }> = {
+    en: {
+    code: "en-US",
+    prompt: "⚠️ Strict rule: Reply ONLY in English language and script. Do not use any other language, transliteration, or translation notes."
+  },
+  hi: {
+    code: "hi-IN",
+    prompt: "⚠️ Strict rule: Reply ONLY in Hindi language and in Devanagari script. Do NOT mix with English, do NOT transliterate, do NOT give translation notes."
+  },
+  };
 
   // ⛔ Stop any ongoing speech
   const stopSpeaking = () => {
@@ -18,35 +34,38 @@ export default function Roleplay() {
     }
   };
 
-  // 🔊 Speak function
+  // 🔊 Speak in selected language
   const speak = (msg: string) => {
-    stopSpeaking(); // make sure previous speech is stopped
+    stopSpeaking();
+    const cfg = langConfig[selectedLang] || langConfig["en"];
     const utterance = new SpeechSynthesisUtterance(msg);
-    utterance.lang = "en-US";
+    utterance.lang = cfg.code;
     utterance.pitch = 1;
     utterance.rate = 1;
     speechSynthesis.speak(utterance);
     utterance.onend = () => startListening();
   };
 
-  // Auto-scroll to bottom
+  // Auto-scroll
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
   // Start new roleplay
   const startRoleplay = async (selected: Scenario) => {
-    stopSpeaking(); // stop current voice immediately
+    stopSpeaking();
     setScenario(selected);
     setMessages([]);
     stopListening();
 
+    const cfg = langConfig[selectedLang] || langConfig["en"];
+
     const systemPrompt =
       selected === "school"
-        ? "We are roleplaying at school. You are a teacher, I am a student. Start with a greeting and stay in role."
+        ? `We are roleplaying at school. You are a teacher, I am a student. Start with a greeting and stay in role. ${cfg.prompt}`
         : selected === "store"
-        ? "We are roleplaying at a store. You are a shopkeeper, I am a customer. Start by offering help and stay in role."
-        : "We are roleplaying at home. You are a family member, I am myself. Start casually and stay in role.";
+        ? `We are roleplaying at a store. You are a shopkeeper, I am a customer. Start by offering help and stay in role. ${cfg.prompt}`
+        : `We are roleplaying at home. You are a family member, I am myself. Start casually and stay in role. ${cfg.prompt}`;
 
     const res = await fetch("/api/chat", {
       method: "POST",
@@ -61,7 +80,7 @@ export default function Roleplay() {
     speak(aiReply);
   };
 
-  // AI auto reply when user stops speaking
+  // AI auto reply
   useEffect(() => {
     if (!text || !scenario || waitingReply) return;
 
@@ -69,11 +88,13 @@ export default function Roleplay() {
       stopListening();
       setWaitingReply(true);
 
+      const cfg = langConfig[selectedLang] || langConfig["en"];
+
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          question: `(${scenario} roleplay) User said: ${text}. Respond in role.`,
+          question: `(${scenario} roleplay) User said: ${text}. ${cfg.prompt}`,
         }),
       });
 
@@ -87,11 +108,11 @@ export default function Roleplay() {
       ]);
 
       setWaitingReply(false);
-      speak(aiReply); // auto-stop handled inside
+      speak(aiReply);
     }, 1200);
 
     return () => clearTimeout(timeout);
-  }, [text, scenario]);
+  }, [text, scenario, selectedLang]);
 
   return (
     <div className="p-4 flex flex-col gap-4 border rounded-2xl shadow-md w-full max-w-md bg-gradient-to-b from-blue-50 to-purple-50">
