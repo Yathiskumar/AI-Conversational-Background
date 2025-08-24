@@ -12,7 +12,7 @@ export default function Home() {
     { value: "hi", label: "Hindi", color: "text-red-500" },
   ];
 
-  const selectedOption = options.find((opt) => opt.value === selectedLang);
+  const selectedOption = options.find((opt) => opt.value === selectedLang) ?? options[0];
 
   return (
     <main className="min-h-screen w-full bg-gradient-to-br from-indigo-100 via-white to-blue-100 flex flex-col items-center justify-start p-10">

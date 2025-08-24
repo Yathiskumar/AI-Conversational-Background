@@ -1,10 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import Groq from "groq-sdk";
 
-const groq = new Groq({ apiKey: process.env.GROQ_API_KEY! });
-
 export async function POST(req: NextRequest) {
   try {
+    const apiKey = process.env.GROQ_API_KEY;
+    if (!apiKey) {
+      return NextResponse.json({ error: "GROQ_API_KEY is not set" }, { status: 500 });
+    }
+
+    const groq = new Groq({ apiKey });
+
     const { question } = await req.json();
 
     const response = await groq.chat.completions.create({
@@ -16,7 +21,8 @@ export async function POST(req: NextRequest) {
     });
 
     return NextResponse.json({ answer: response.choices[0]?.message?.content });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Unexpected error";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
